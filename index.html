@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Case Brief Studio — IRAC Organizer</title>
+<link rel="icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="%23000000"/><circle cx="32" cy="32" r="9" fill="%23FFFFFF"/></svg>'>
+<link rel="apple-touch-icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="%23000000"/><circle cx="32" cy="32" r="9" fill="%23FFFFFF"/></svg>'>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#FBFAF7;
+  --card:#FFFFFF;
+  --ink:#21242B;
+  --ink-soft:#5A5F6B;
+  --rule:#E5E2D9;
+  --spine:#7C2230;        /* casebook oxblood */
+  --slate:#33517A;
+  --c-issue:#3B6FB5;
+  --c-rule:#2E7D5B;
+  --c-app:#B5811F;
+  --c-conc:#A03546;
+  --c-neutral:#8A93A3;
+  --sans:"IBM Plex Sans","Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",system-ui,sans-serif;
+  --serif:"Libre Caslon Text",Georgia,"Apple SD Gothic Neo","Noto Serif KR","Malgun Gothic",serif;
+  --brief-font:Arial,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:var(--sans);background:var(--paper);color:var(--ink);font-size:15px}
+button{font-family:var(--sans);cursor:pointer}
+::selection{background:#33517A22}
+
+/* ---------- top bar ---------- */
+.topbar{
+  position:fixed;top:0;left:0;right:0;height:52px;z-index:60;
+  background:var(--card);border-bottom:1px solid var(--rule);
+  display:flex;align-items:center;gap:14px;padding:0 16px;
+}
+.wordmark{font-family:var(--serif);font-weight:700;font-size:17px;letter-spacing:.01em;white-space:nowrap}
+.wordmark .amp{color:var(--spine)}
+.wordmark small{font-family:var(--sans);font-weight:500;font-size:11px;color:var(--ink-soft);margin-left:8px;letter-spacing:.06em}
+.save-status{font-size:12px;color:var(--ink-soft);min-width:70px}
+.save-status.saving{color:var(--c-app)}
+.spacer{flex:1}
+.viewtoggle{display:flex;border:1px solid var(--rule);border-radius:8px;overflow:hidden}
+.viewtoggle button{background:var(--card);border:none;padding:6px 12px;font-size:12.5px;color:var(--ink-soft)}
+.viewtoggle button.on{background:var(--slate);color:#fff}
+.btn{border:1px solid var(--rule);background:var(--card);border-radius:8px;padding:7px 13px;font-size:13px;color:var(--ink)}
+.btn:hover{border-color:var(--slate);color:var(--slate)}
+.btn.primary{background:var(--spine);border-color:var(--spine);color:#fff}
+.btn.primary:hover{background:#651a27;color:#fff}
+
+/* ---------- layout ---------- */
+.layout{display:flex;height:100%;padding-top:52px}
+.sidebar{
+  width:264px;flex:0 0 264px;background:var(--card);border-right:1px solid var(--rule);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.side-top{padding:12px 12px 8px;border-bottom:1px solid var(--rule)}
+.search{width:100%;padding:8px 10px;border:1px solid var(--rule);border-radius:8px;font-size:13px;font-family:var(--sans);background:var(--paper)}
+.search:focus{outline:2px solid var(--slate);outline-offset:1px}
+.case-list{flex:1;overflow-y:auto;padding:8px 8px 16px}
+.course-group{margin-bottom:10px}
+.course-label{
+  font-size:10.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--ink-soft);padding:8px 8px 4px;
+}
+.case-item{
+  display:block;width:100%;text-align:left;border:1px solid transparent;background:none;
+  border-radius:8px;padding:8px 10px;margin-bottom:2px;
+}
+.case-item:hover{background:var(--paper)}
+.case-item.active{background:#7C22300E;border-color:#7C223033}
+.case-item .cname{font-family:var(--serif);font-size:13.5px;line-height:1.3;color:var(--ink)}
+.case-item.active .cname{color:var(--spine);font-weight:700}
+.case-item .ccite{font-size:11px;color:var(--ink-soft);margin-top:2px}
+.side-bottom{border-top:1px solid var(--rule);padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.side-bottom .row{display:flex;gap:8px}
+.side-bottom .row .btn{flex:1;font-size:12px;padding:6px 8px;text-align:center}
+.empty-list{padding:24px 12px;font-size:13px;color:var(--ink-soft);text-align:center;line-height:1.5}
+
+/* ---------- multi-select ---------- */
+.select-toggle{width:100%;margin-top:8px;font-size:12px;padding:6px}
+.select-toggle.on{background:var(--slate);border-color:var(--slate);color:#fff}
+.btn.danger{color:var(--c-conc)}
+.btn.danger:hover{border-color:var(--c-conc);color:var(--c-conc)}
+.case-item{display:flex;align-items:flex-start;gap:8px}
+.ci-txt{min-width:0;flex:1}
+.ck{
+  flex:0 0 16px;width:16px;height:16px;margin-top:2px;border:1.5px solid var(--c-neutral);
+  border-radius:4px;display:none;align-items:center;justify-content:center;
+  font-size:11px;line-height:1;color:#fff;
+}
+body.selectmode .ck{display:inline-flex}
+.case-item.sel{background:#33517A14;border-color:#33517A44}
+.case-item.sel .ck{background:var(--slate);border-color:var(--slate)}
+.case-item.sel .ck:before{content:"✓"}
+.bulkbar{
+  display:none;flex-direction:column;gap:8px;border-top:1px solid var(--rule);
+  padding:10px 12px;background:#33517A0A;
+}
+body.selectmode .bulkbar{display:flex}
+body.selectmode .side-bottom{display:none}
+.bulk-count{font-size:12px;font-weight:600;color:var(--slate)}
+.bulkbar .row{display:flex;gap:6px}
+.bulkbar .row .btn{flex:1;font-size:12px;padding:6px 4px;text-align:center}
+
+/* ---------- multi-case print container ---------- */
+#printMulti{display:none}
+
+/* ---------- toolbar ---------- */
+.main{flex:1;overflow-y:auto;position:relative}
+.toolbar{
+  position:sticky;top:0;z-index:50;display:flex;align-items:center;flex-wrap:wrap;gap:6px;
+  background:#FFFFFFF2;backdrop-filter:blur(6px);border-bottom:1px solid var(--rule);
+  padding:8px 20px;
+}
+.tgroup{display:flex;align-items:center;gap:4px;padding-right:10px;margin-right:4px;border-right:1px solid var(--rule)}
+.tgroup:last-child{border-right:none}
+.tlabel{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);margin-right:2px}
+.tbtn{
+  min-width:30px;height:30px;border:1px solid var(--rule);border-radius:7px;background:var(--card);
+  font-size:13.5px;color:var(--ink);display:inline-flex;align-items:center;justify-content:center;padding:0 7px;
+}
+.tbtn:hover{border-color:var(--slate);color:var(--slate)}
+.font-sel{
+  height:30px;border:1px solid var(--rule);border-radius:7px;background:var(--card);
+  font-family:var(--sans);font-size:12.5px;color:var(--ink);padding:0 6px;max-width:150px;cursor:pointer;
+}
+.font-sel:focus{outline:2px solid var(--slate);outline-offset:1px}
+.swatch{width:26px;height:26px;border-radius:7px;border:1px solid #00000022;padding:0}
+.swatch:hover{transform:scale(1.12)}
+.swatch.textclr{display:inline-flex;align-items:center;justify-content:center;background:var(--card);font-weight:700;font-family:var(--serif);font-size:14px}
+.hint{font-size:11.5px;color:var(--ink-soft);margin-left:auto;padding-left:10px}
+
+/* ---------- brief ---------- */
+.canvas-wrap{padding:26px 28px 80px;display:flex;justify-content:center}
+.brief{
+  position:relative;width:100%;max-width:860px;background:var(--card);
+  border:1px solid var(--rule);border-radius:4px;
+  box-shadow:0 2px 14px #00000010;
+  border-left:10px solid var(--spine);
+  padding:34px 42px 48px;
+}
+.brief-head{border-bottom:2px solid var(--ink);padding-bottom:16px;margin-bottom:6px}
+.meta-row{display:flex;flex-wrap:wrap;gap:8px 22px;margin-top:10px}
+.meta-item{display:flex;flex-direction:column;gap:2px;min-width:120px;flex:1}
+.meta-item label{font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft)}
+.meta-input{border:none;border-bottom:1px dashed var(--rule);font-family:var(--sans);font-size:13px;padding:3px 1px;background:none;color:var(--ink)}
+.meta-input:focus{outline:none;border-bottom-color:var(--slate)}
+.case-title{
+  font-family:var(--brief-font);font-size:27px;font-weight:700;line-height:1.25;color:var(--ink);
+  border:none;background:none;width:100%;padding:0 0 2px;
+}
+.case-title:focus{outline:none}
+.case-title:empty:before{content:attr(data-ph);color:#B9BCC5;font-style:italic}
+
+.section{display:flex;gap:16px;padding:18px 0;border-bottom:1px solid var(--rule)}
+.section:last-of-type{border-bottom:none}
+.sec-rail{flex:0 0 118px;padding-left:10px;border-left:4px solid var(--c-neutral)}
+.section[data-sec="issue"] .sec-rail{border-left-color:var(--c-issue)}
+.section[data-sec="rule"] .sec-rail{border-left-color:var(--c-rule)}
+.section[data-sec="application"] .sec-rail{border-left-color:var(--c-app)}
+.section[data-sec="conclusion"] .sec-rail{border-left-color:var(--c-conc)}
+.sec-en{font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;line-height:1.3}
+.section[data-sec="issue"] .sec-en{color:var(--c-issue)}
+.section[data-sec="rule"] .sec-en{color:var(--c-rule)}
+.section[data-sec="application"] .sec-en{color:var(--c-app)}
+.section[data-sec="conclusion"] .sec-en{color:var(--c-conc)}
+.section[data-sec="facts"] .sec-en,
+.section[data-sec="proc"] .sec-en,
+.section[data-sec="notes"] .sec-en{color:var(--ink-soft)}
+.sec-kr{font-size:11.5px;color:var(--ink-soft);margin-top:2px}
+.sec-body{flex:1;min-width:0}
+.field{
+  font-family:var(--brief-font);font-size:15.5px;line-height:1.75;color:var(--ink);
+  min-height:44px;padding:2px 2px;border-radius:4px;
+}
+.field:focus{outline:2px solid #33517A33;outline-offset:3px}
+.field:empty:before{content:attr(data-ph);color:#B9BCC5;font-style:italic;font-size:13.5px}
+.field ul,.field ol{padding-left:22px;margin:4px 0}
+.irac-only .section[data-sec="facts"],
+.irac-only .section[data-sec="proc"],
+.irac-only .section[data-sec="notes"]{display:none}
+
+.brief-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:20px}
+.brief-actions .btn.danger{color:var(--c-conc)}
+.brief-actions .btn.danger:hover{border-color:var(--c-conc)}
+
+/* ---------- sticky notes ---------- */
+.sticky{
+  position:absolute;width:185px;min-height:120px;padding:26px 12px 12px;z-index:20;
+  font-family:var(--sans);font-size:12.5px;line-height:1.5;color:#3a3428;
+  box-shadow:2px 4px 10px #00000026;border-radius:2px;
+}
+.sticky.rot-a{transform:rotate(-1.6deg)}
+.sticky.rot-b{transform:rotate(1.2deg)}
+.sticky.rot-c{transform:rotate(-0.6deg)}
+.sticky .grip{
+  position:absolute;top:0;left:0;right:0;height:20px;cursor:grab;
+  background:#00000012;
+}
+.sticky .grip:active{cursor:grabbing}
+.sticky .kill{
+  position:absolute;top:1px;right:3px;border:none;background:none;font-size:13px;
+  color:#00000066;line-height:1;padding:2px 4px;
+}
+.sticky .kill:hover{color:#000}
+.sticky .stext{min-height:80px;outline:none}
+.sticky .stext:empty:before{content:"memo…";color:#00000055;font-style:italic}
+.sticky[data-clr="yellow"]{background:#FEF3A8}
+.sticky[data-clr="pink"]{background:#FCD7DE}
+.sticky[data-clr="blue"]{background:#CFE8FC}
+.sticky[data-clr="green"]{background:#D7F1D9}
+.sticky-picker{display:flex;gap:4px}
+.sticky-picker .swatch{border-radius:2px}
+
+/* printed sticky appendix */
+.print-stickies{display:none}
+
+/* ---------- modal-ish confirm uses native confirm() ---------- */
+
+/* ---------- responsive ---------- */
+@media (max-width:900px){
+  .sidebar{position:fixed;left:0;top:52px;bottom:0;z-index:70;transform:translateX(-100%);transition:transform .2s}
+  .sidebar.open{transform:translateX(0);box-shadow:4px 0 20px #00000022}
+  .menu-btn{display:inline-flex}
+  .brief{padding:24px 20px 40px}
+  .section{flex-direction:column;gap:6px}
+  .sec-rail{flex:none;border-left-width:4px}
+}
+.menu-btn{display:none}
+@media (max-width:900px){.menu-btn{display:inline-flex}}
+
+/* ---------- print: only the active brief, colors preserved ---------- */
+@media print{
+  body{background:#fff}
+  .topbar,.sidebar,.toolbar,.brief-actions,.sticky,.menu-btn{display:none !important}
+  .layout{padding-top:0}
+  .main{overflow:visible}
+  .canvas-wrap{padding:0}
+  .brief{box-shadow:none;border:none;border-left:10px solid var(--spine);max-width:none;border-radius:0}
+  .field:empty:before,.case-title:empty:before{content:""}
+  *{print-color-adjust:exact;-webkit-print-color-adjust:exact}
+  .print-stickies{display:block;margin-top:28px;border-top:2px solid var(--ink);padding-top:14px}
+  .print-stickies h3{font-family:var(--sans);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:10px}
+  .print-stickies .pnote{
+    display:inline-block;vertical-align:top;width:200px;margin:0 12px 12px 0;padding:10px 12px;
+    font-family:var(--sans);font-size:12px;line-height:1.5;border-radius:2px;box-shadow:none;border:1px solid #00000015;
+  }
+  .pnote[data-clr="yellow"]{background:#FEF3A8}
+  .pnote[data-clr="pink"]{background:#FCD7DE}
+  .pnote[data-clr="blue"]{background:#CFE8FC}
+  .pnote[data-clr="green"]{background:#D7F1D9}
+  /* multi-case export: hide the editor, print the generated stack */
+  body.multi-print .canvas-wrap{display:none}
+  body.multi-print #printMulti{display:block}
+  #printMulti .brief{box-shadow:none;border:none;border-left:10px solid var(--spine);max-width:none;border-radius:0;margin:0;padding:24px 10px 30px}
+  #printMulti .brief.pbreak{break-after:page;page-break-after:always}
+  #printMulti .brief:last-child{break-after:auto;page-break-after:auto}
+  #printMulti .meta-input{border-bottom:none}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <button class="btn menu-btn" id="menuBtn" title="Case list">☰</button>
+  <div class="wordmark">Case Brief <span class="amp">Studio</span><small>IRAC</small></div>
+  <div class="save-status" id="saveStatus">Loaded</div>
+  <div class="spacer"></div>
+  <div class="viewtoggle" role="group" aria-label="View">
+    <button id="viewFull" class="on">Full brief</button>
+    <button id="viewIrac">IRAC only</button>
+  </div>
+  <button class="btn primary" id="printBtn">Export to PDF</button>
+</header>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="side-top">
+      <input class="search" id="searchBox" type="text" placeholder="Search cases…">
+      <button class="btn select-toggle" id="selectModeBtn">Select multiple</button>
+    </div>
+    <div class="case-list" id="caseList"></div>
+    <div class="bulkbar" id="bulkBar">
+      <div class="bulk-count" id="bulkCount">0 selected</div>
+      <div class="row">
+        <button class="btn" id="bulkAll">All</button>
+        <button class="btn" id="bulkNone">None</button>
+        <button class="btn" id="bulkCourse">Set course</button>
+      </div>
+      <div class="row">
+        <button class="btn" id="bulkPdf">One PDF</button>
+        <button class="btn" id="bulkBackup">Backup</button>
+        <button class="btn danger" id="bulkDelete">Delete</button>
+      </div>
+    </div>
+    <div class="side-bottom">
+      <button class="btn primary" id="newCaseBtn">＋ New case</button>
+      <div class="row">
+        <button class="btn" id="exportJson" title="Download all briefs as a backup file">Backup</button>
+        <button class="btn" id="importJson" title="Restore briefs from a backup file">Restore</button>
+      </div>
+      <input type="file" id="importFile" accept="application/json" style="display:none">
+    </div>
+  </aside>
+
+  <main class="main" id="main">
+    <div class="toolbar" id="toolbar">
+      <div class="tgroup">
+        <span class="tlabel">Font</span>
+        <select class="font-sel" id="fontSel" title="Brief font">
+          <option value='Arial,"Apple SD Gothic Neo","Malgun Gothic",sans-serif' style="font-family:Arial">Arial</option>
+          <option value='Helvetica,Arial,"Apple SD Gothic Neo","Malgun Gothic",sans-serif' style="font-family:Helvetica">Helvetica</option>
+          <option value='Calibri,"Segoe UI","Apple SD Gothic Neo","Malgun Gothic",sans-serif' style="font-family:Calibri">Calibri</option>
+          <option value='Verdana,"Apple SD Gothic Neo","Malgun Gothic",sans-serif' style="font-family:Verdana">Verdana</option>
+          <option value='Tahoma,"Apple SD Gothic Neo","Malgun Gothic",sans-serif' style="font-family:Tahoma">Tahoma</option>
+          <option value='"Trebuchet MS","Apple SD Gothic Neo","Malgun Gothic",sans-serif' style="font-family:'Trebuchet MS'">Trebuchet MS</option>
+          <option value='"Times New Roman",Times,"Malgun Gothic",serif' style="font-family:'Times New Roman'">Times New Roman</option>
+          <option value='Georgia,"Apple SD Gothic Neo","Malgun Gothic",serif' style="font-family:Georgia">Georgia</option>
+          <option value='Garamond,"Times New Roman","Malgun Gothic",serif' style="font-family:Garamond">Garamond</option>
+          <option value='"Libre Caslon Text",Georgia,"Malgun Gothic",serif' style="font-family:'Libre Caslon Text',Georgia">Libre Caslon (serif)</option>
+          <option value='"Courier New",Courier,monospace' style="font-family:'Courier New'">Courier New</option>
+        </select>
+      </div>
+      <div class="tgroup">
+        <button class="tbtn" data-cmd="bold" title="Bold"><b>B</b></button>
+        <button class="tbtn" data-cmd="italic" title="Italic"><i>I</i></button>
+        <button class="tbtn" data-cmd="underline" title="Underline"><u>U</u></button>
+        <button class="tbtn" data-cmd="strikeThrough" title="Strikethrough"><s>S</s></button>
+        <button class="tbtn" data-cmd="insertUnorderedList" title="Bullet list">•≡</button>
+      </div>
+      <div class="tgroup">
+        <span class="tlabel">Highlight</span>
+        <button class="swatch" data-hilite="#FFF176" style="background:#FFF176" title="Yellow highlight"></button>
+        <button class="swatch" data-hilite="#B9F6CA" style="background:#B9F6CA" title="Green highlight"></button>
+        <button class="swatch" data-hilite="#F8BBD0" style="background:#F8BBD0" title="Pink highlight"></button>
+        <button class="swatch" data-hilite="#B3E5FC" style="background:#B3E5FC" title="Blue highlight"></button>
+        <button class="swatch" data-hilite="#E1BEE7" style="background:#E1BEE7" title="Purple highlight"></button>
+        <button class="tbtn" data-hilite="transparent" title="Remove highlight">⌫</button>
+      </div>
+      <div class="tgroup">
+        <span class="tlabel">Text</span>
+        <button class="swatch textclr" data-fore="#21242B" style="color:#21242B" title="Ink">A</button>
+        <button class="swatch textclr" data-fore="#A03546" style="color:#A03546" title="Red">A</button>
+        <button class="swatch textclr" data-fore="#3B6FB5" style="color:#3B6FB5" title="Blue">A</button>
+        <button class="swatch textclr" data-fore="#2E7D5B" style="color:#2E7D5B" title="Green">A</button>
+        <button class="swatch textclr" data-fore="#B5811F" style="color:#B5811F" title="Amber">A</button>
+        <button class="swatch textclr" data-fore="#7B4FA6" style="color:#7B4FA6" title="Purple">A</button>
+      </div>
+      <div class="tgroup">
+        <button class="tbtn" data-cmd="removeFormat" title="Clear all formatting">Clear</button>
+      </div>
+      <div class="tgroup">
+        <span class="tlabel">Post-it</span>
+        <div class="sticky-picker">
+          <button class="swatch" data-sticky="yellow" style="background:#FEF3A8" title="Add yellow note"></button>
+          <button class="swatch" data-sticky="pink" style="background:#FCD7DE" title="Add pink note"></button>
+          <button class="swatch" data-sticky="blue" style="background:#CFE8FC" title="Add blue note"></button>
+          <button class="swatch" data-sticky="green" style="background:#D7F1D9" title="Add green note"></button>
+        </div>
+      </div>
+      <span class="hint">Select text, then pick a color</span>
+    </div>
+
+    <div class="canvas-wrap">
+      <article class="brief" id="brief">
+        <div class="brief-head">
+          <h1 class="case-title field-title" id="f_name" contenteditable="true" data-ph="Case name — e.g., Pennoyer v. Neff" spellcheck="false"></h1>
+          <div class="meta-row">
+            <div class="meta-item"><label>Citation</label><input class="meta-input" id="f_cite" placeholder="95 U.S. 714 (1878)"></div>
+            <div class="meta-item"><label>Court</label><input class="meta-input" id="f_court" placeholder="U.S. Supreme Court"></div>
+            <div class="meta-item"><label>Course</label><input class="meta-input" id="f_course" placeholder="Civil Procedure"></div>
+            <div class="meta-item"><label>Reading / Page</label><input class="meta-input" id="f_page" placeholder="CB pp. 61–75"></div>
+          </div>
+        </div>
+
+        <section class="section" data-sec="facts">
+          <div class="sec-rail"><div class="sec-en">Facts</div></div>
+          <div class="sec-body"><div class="field" id="f_facts" contenteditable="true" data-ph="Who did what to whom? Only the facts that matter to the outcome — told as a short story."></div></div>
+        </section>
+
+        <section class="section" data-sec="proc">
+          <div class="sec-rail"><div class="sec-en">Procedural History</div></div>
+          <div class="sec-body"><div class="field" id="f_proc" contenteditable="true" data-ph="What happened in the courts below, and how did the case get here?"></div></div>
+        </section>
+
+        <section class="section" data-sec="issue">
+          <div class="sec-rail"><div class="sec-en">Issue</div></div>
+          <div class="sec-body"><div class="field" id="f_issue" contenteditable="true" data-ph="One question, framed to be answered yes or no: “Whether … when …?”"></div></div>
+        </section>
+
+        <section class="section" data-sec="rule">
+          <div class="sec-rail"><div class="sec-en">Rule</div></div>
+          <div class="sec-body"><div class="field" id="f_rule" contenteditable="true" data-ph="The legal rule the court uses — elements, tests, standards. This is what goes in your outline."></div></div>
+        </section>
+
+        <section class="section" data-sec="application">
+          <div class="sec-rail"><div class="sec-en">Application</div></div>
+          <div class="sec-body"><div class="field" id="f_app" contenteditable="true" data-ph="How the court applies the rule to these facts, step by step. Note counterarguments and dissents here too."></div></div>
+        </section>
+
+        <section class="section" data-sec="conclusion">
+          <div class="sec-rail"><div class="sec-en">Conclusion / Holding</div></div>
+          <div class="sec-body"><div class="field" id="f_conc" contenteditable="true" data-ph="Who wins, and the holding in one clean sentence."></div></div>
+        </section>
+
+        <section class="section" data-sec="notes">
+          <div class="sec-rail"><div class="sec-en">Class Notes</div></div>
+          <div class="sec-body"><div class="field" id="f_notes" contenteditable="true" data-ph="Professor's hypos, likely cold-call questions, and your prepared answers (your script)."></div></div>
+        </section>
+
+        <div class="brief-actions">
+          <button class="btn" id="dupBtn">Duplicate</button>
+          <button class="btn danger" id="delBtn">Delete case</button>
+        </div>
+
+        <div class="print-stickies" id="printStickies"></div>
+      </article>
+    </div>
+    <div id="printMulti"></div>
+  </main>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ------------------------------------------------------------------ state */
+const STORE_KEY = "casebrief:v1";
+let state = { cases: [], activeId: null, view: "full" };
+let memoryFallback = null;   // if window.storage unavailable
+let saveTimer = null;
+
+const $ = (id)=>document.getElementById(id);
+const uid = ()=>"c" + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+
+function blankCase(){
+  return { id: uid(), name:"", cite:"", court:"", course:"", page:"",
+           facts:"", proc:"", issue:"", rule:"", app:"", conc:"", notes:"",
+           stickies:[], updated: Date.now() };
+}
+function activeCase(){ return state.cases.find(c=>c.id===state.activeId) || null; }
+
+/* ---------------------------------------------------------------- storage */
+async function loadState(){
+  /* GitHub Pages / normal browser: localStorage */
+  try{
+    const v = localStorage.getItem(STORE_KEY);
+    if(v){ state = JSON.parse(v); return; }
+  }catch(e){ /* localStorage unavailable (e.g., inside claude.ai) */ }
+  /* claude.ai artifact environment: window.storage */
+  try{
+    if(window.storage){
+      const r = await window.storage.get(STORE_KEY);
+      if(r && r.value){ state = JSON.parse(r.value); return; }
+    }
+  }catch(e){ /* key missing or storage unavailable */ }
+  if(memoryFallback){ state = memoryFallback; }
+}
+async function persist(){
+  setStatus("Saving…", true);
+  const payload = JSON.stringify(state);
+  try{
+    localStorage.setItem(STORE_KEY, payload);
+    setStatus("Saved");
+    return;
+  }catch(e){ /* fall through */ }
+  try{
+    if(window.storage){
+      await window.storage.set(STORE_KEY, payload);
+      setStatus("Saved");
+      return;
+    }
+  }catch(e){ /* fall through */ }
+  memoryFallback = JSON.parse(payload);
+  setStatus("Saved (this session)");
+}
+function scheduleSave(){
+  setStatus("Saving…", true);
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(persist, 700);
+}
+function setStatus(txt, saving){
+  const el = $("saveStatus");
+  el.textContent = txt;
+  el.classList.toggle("saving", !!saving);
+}
+
+/* ---------------------------------------------------------------- sidebar */
+let selectMode = false;
+const selectedIds = new Set();
+
+function renderSidebar(){
+  const list = $("caseList");
+  const q = $("searchBox").value.trim().toLowerCase();
+  list.innerHTML = "";
+  const groups = {};
+  state.cases.forEach(c=>{
+    const hay = (stripHtml(c.name)+" "+c.cite+" "+c.course).toLowerCase();
+    if(q && !hay.includes(q)) return;
+    const key = c.course.trim() || "Uncategorized";
+    (groups[key] = groups[key] || []).push(c);
+  });
+  const keys = Object.keys(groups).sort((a,b)=>a.localeCompare(b));
+  if(keys.length===0){
+    list.innerHTML = '<div class="empty-list">'+(q ? "No cases match your search." :
+      "No cases yet.<br>Press <b>＋ New case</b> to start your first brief.")+'</div>';
+    return;
+  }
+  keys.forEach(k=>{
+    const g = document.createElement("div");
+    g.className = "course-group";
+    const lab = document.createElement("div");
+    lab.className = "course-label";
+    lab.textContent = k;
+    g.appendChild(lab);
+    groups[k].sort((a,b)=>stripHtml(a.name).localeCompare(stripHtml(b.name)));
+    groups[k].forEach(c=>{
+      const b = document.createElement("button");
+      b.className = "case-item"
+        + (c.id===state.activeId ? " active" : "")
+        + (selectedIds.has(c.id) ? " sel" : "");
+      const nm = stripHtml(c.name) || "Untitled case";
+      b.innerHTML = '<span class="ck" aria-hidden="true"></span>'+
+                    '<span class="ci-txt"><span class="cname" style="display:block"></span>'+
+                    '<span class="ccite" style="display:block"></span></span>';
+      b.querySelector(".cname").textContent = nm;
+      b.querySelector(".ccite").textContent = c.cite || "—";
+      b.addEventListener("click", ()=>{
+        if(selectMode){ toggleSelected(c.id, b); return; }
+        selectCase(c.id); closeSidebarMobile();
+      });
+      g.appendChild(b);
+    });
+    list.appendChild(g);
+  });
+}
+function toggleSelected(id, node){
+  if(selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id);
+  if(node) node.classList.toggle("sel", selectedIds.has(id));
+  updateBulkCount();
+}
+function updateBulkCount(){
+  $("bulkCount").textContent = selectedIds.size + " selected";
+}
+function stripHtml(html){
+  const d = document.createElement("div");
+  d.innerHTML = html || "";
+  return (d.textContent || "").trim();
+}
+
+/* ------------------------------------------------------------------ brief */
+const FIELD_MAP = [
+  ["f_facts","facts"],["f_proc","proc"],["f_issue","issue"],
+  ["f_rule","rule"],["f_app","app"],["f_conc","conc"],["f_notes","notes"]
+];
+function renderBrief(){
+  const c = activeCase();
+  const brief = $("brief");
+  if(!c){ brief.style.visibility="hidden"; return; }
+  brief.style.visibility="visible";
+  $("f_name").innerHTML = c.name;
+  $("f_cite").value = c.cite; $("f_court").value = c.court;
+  $("f_course").value = c.course; $("f_page").value = c.page;
+  FIELD_MAP.forEach(([el,key])=>{ $(el).innerHTML = c[key]; });
+  cleanEmptyFields();
+  renderStickies(c);
+  renderPrintStickies(c);
+}
+function cleanEmptyFields(){
+  document.querySelectorAll(".field, .case-title").forEach(f=>{
+    if(!stripHtml(f.innerHTML) && !f.querySelector("img")) f.innerHTML = "";
+  });
+}
+function readBriefIntoState(){
+  const c = activeCase(); if(!c) return;
+  c.name = $("f_name").innerHTML;
+  c.cite = $("f_cite").value; c.court = $("f_court").value;
+  c.course = $("f_course").value; c.page = $("f_page").value;
+  FIELD_MAP.forEach(([el,key])=>{ c[key] = $(el).innerHTML; });
+  c.updated = Date.now();
+}
+
+function selectCase(id){
+  if(activeCase()) readBriefIntoState();
+  state.activeId = id;
+  renderSidebar(); renderBrief(); scheduleSave();
+}
+function addCase(){
+  const c = blankCase();
+  state.cases.push(c);
+  selectCase(c.id);
+  $("f_name").focus();
+}
+function duplicateCase(){
+  const c = activeCase(); if(!c) return;
+  readBriefIntoState();
+  const copy = JSON.parse(JSON.stringify(c));
+  copy.id = uid(); copy.updated = Date.now();
+  copy.name = (c.name || "Untitled") + " (copy)";
+  copy.stickies.forEach(s=>{ s.id = uid(); });
+  state.cases.push(copy);
+  selectCase(copy.id);
+}
+function deleteCase(){
+  const c = activeCase(); if(!c) return;
+  const nm = stripHtml(c.name) || "this untitled case";
+  if(!confirm("Delete “"+nm+"”? This cannot be undone.")) return;
+  state.cases = state.cases.filter(x=>x.id!==c.id);
+  state.activeId = state.cases.length ? state.cases[0].id : null;
+  if(!state.activeId){ addCase(); return; }
+  renderSidebar(); renderBrief(); scheduleSave();
+}
+
+/* ------------------------------------------------------------ formatting */
+try{ document.execCommand("styleWithCSS", false, true); }catch(e){}
+function applyCmd(cmd, val){
+  document.execCommand(cmd, false, val || null);
+  readBriefIntoState(); scheduleSave();
+}
+document.querySelectorAll(".toolbar [data-cmd]").forEach(b=>{
+  b.addEventListener("mousedown", e=>e.preventDefault());
+  b.addEventListener("click", ()=>applyCmd(b.dataset.cmd));
+});
+document.querySelectorAll(".toolbar [data-hilite]").forEach(b=>{
+  b.addEventListener("mousedown", e=>e.preventDefault());
+  b.addEventListener("click", ()=>{
+    const v = b.dataset.hilite;
+    if(!document.execCommand("hiliteColor", false, v)){
+      document.execCommand("backColor", false, v);
+    }
+    readBriefIntoState(); scheduleSave();
+  });
+});
+document.querySelectorAll(".toolbar [data-fore]").forEach(b=>{
+  b.addEventListener("mousedown", e=>e.preventDefault());
+  b.addEventListener("click", ()=>applyCmd("foreColor", b.dataset.fore));
+});
+
+/* keyboard shortcuts: Ctrl/Cmd+B/I/U already native in contenteditable */
+
+/* ------------------------------------------------------------ field wiring */
+function wireFields(){
+  document.querySelectorAll(".field, .case-title").forEach(f=>{
+    f.addEventListener("input", ()=>{ readBriefIntoState(); renderSidebarSoft(); scheduleSave(); });
+    f.addEventListener("blur", cleanEmptyFields);
+    f.addEventListener("paste", e=>{           /* paste as plain text to keep briefs clean */
+      e.preventDefault();
+      const t = (e.clipboardData || window.clipboardData).getData("text/plain");
+      document.execCommand("insertText", false, t);
+    });
+  });
+  ["f_cite","f_court","f_course","f_page"].forEach(id=>{
+    $(id).addEventListener("input", ()=>{ readBriefIntoState(); renderSidebarSoft(); scheduleSave(); });
+  });
+}
+let sideTimer=null;
+function renderSidebarSoft(){ clearTimeout(sideTimer); sideTimer=setTimeout(renderSidebar, 400); }
+
+/* -------------------------------------------------------------- stickies */
+function renderStickies(c){
+  document.querySelectorAll(".sticky").forEach(n=>n.remove());
+  const brief = $("brief");
+  c.stickies.forEach((s, i)=>{
+    const n = document.createElement("div");
+    n.className = "sticky rot-" + ["a","b","c"][i % 3];
+    n.dataset.clr = s.color; n.dataset.sid = s.id;
+    n.style.left = s.x + "px"; n.style.top = s.y + "px";
+    n.innerHTML = '<div class="grip" title="Drag to move"></div>'+
+                  '<button class="kill" title="Delete note">✕</button>'+
+                  '<div class="stext" contenteditable="true"></div>';
+    n.querySelector(".stext").innerHTML = s.text || "";
+    n.querySelector(".stext").addEventListener("input", ()=>{
+      s.text = n.querySelector(".stext").innerHTML;
+      renderPrintStickies(c); scheduleSave();
+    });
+    n.querySelector(".kill").addEventListener("click", ()=>{
+      c.stickies = c.stickies.filter(x=>x.id!==s.id);
+      renderStickies(c); renderPrintStickies(c); scheduleSave();
+    });
+    enableDrag(n, s, brief);
+    brief.appendChild(n);
+  });
+}
+function enableDrag(node, s, container){
+  const grip = node.querySelector(".grip");
+  grip.addEventListener("pointerdown", (e)=>{
+    e.preventDefault();
+    grip.setPointerCapture(e.pointerId);
+    const startX = e.clientX, startY = e.clientY;
+    const origX = s.x, origY = s.y;
+    const rect = container.getBoundingClientRect();
+    function move(ev){
+      let nx = origX + (ev.clientX - startX);
+      let ny = origY + (ev.clientY - startY);
+      nx = Math.max(-20, Math.min(nx, rect.width - 120));
+      ny = Math.max(0, Math.min(ny, container.scrollHeight - 60));
+      s.x = nx; s.y = ny;
+      node.style.left = nx + "px"; node.style.top = ny + "px";
+    }
+    function up(ev){
+      grip.removeEventListener("pointermove", move);
+      grip.removeEventListener("pointerup", up);
+      scheduleSave();
+    }
+    grip.addEventListener("pointermove", move);
+    grip.addEventListener("pointerup", up);
+  });
+}
+document.querySelectorAll("[data-sticky]").forEach(b=>{
+  b.addEventListener("click", ()=>{
+    const c = activeCase(); if(!c) return;
+    const offset = (c.stickies.length % 5) * 26;
+    c.stickies.push({ id: uid(), color: b.dataset.sticky, text: "",
+                      x: 600 + ((c.stickies.length%3)*10), y: 90 + offset });
+    renderStickies(c); renderPrintStickies(c); scheduleSave();
+  });
+});
+function renderPrintStickies(c){
+  const box = $("printStickies");
+  if(!c || !c.stickies.length){ box.innerHTML=""; return; }
+  box.innerHTML = "<h3>Post-it notes</h3>";
+  c.stickies.forEach(s=>{
+    const d = document.createElement("div");
+    d.className = "pnote"; d.dataset.clr = s.color;
+    d.innerHTML = s.text || "";
+    box.appendChild(d);
+  });
+}
+
+/* ------------------------------------------------------------ bulk actions */
+$("selectModeBtn").addEventListener("click", ()=>{
+  selectMode = !selectMode;
+  document.body.classList.toggle("selectmode", selectMode);
+  $("selectModeBtn").classList.toggle("on", selectMode);
+  $("selectModeBtn").textContent = selectMode ? "Done selecting" : "Select multiple";
+  if(!selectMode) selectedIds.clear();
+  updateBulkCount();
+  renderSidebar();
+});
+$("bulkAll").addEventListener("click", ()=>{
+  state.cases.forEach(c=>selectedIds.add(c.id));
+  updateBulkCount(); renderSidebar();
+});
+$("bulkNone").addEventListener("click", ()=>{
+  selectedIds.clear(); updateBulkCount(); renderSidebar();
+});
+$("bulkCourse").addEventListener("click", ()=>{
+  if(!selectedIds.size){ alert("Select at least one case first."); return; }
+  const name = prompt("Course name for the " + selectedIds.size + " selected case(s):");
+  if(name===null) return;
+  state.cases.forEach(c=>{ if(selectedIds.has(c.id)) c.course = name.trim(); });
+  readBriefIntoState(); renderSidebar(); renderBrief(); scheduleSave();
+});
+$("bulkDelete").addEventListener("click", ()=>{
+  if(!selectedIds.size){ alert("Select at least one case first."); return; }
+  if(!confirm("Delete " + selectedIds.size + " case(s)? This cannot be undone.")) return;
+  state.cases = state.cases.filter(c=>!selectedIds.has(c.id));
+  selectedIds.clear(); updateBulkCount();
+  if(!state.cases.length){ state.activeId = null; addCase(); return; }
+  if(!activeCase()) state.activeId = state.cases[0].id;
+  renderSidebar(); renderBrief(); scheduleSave();
+});
+$("bulkBackup").addEventListener("click", ()=>{
+  if(!selectedIds.size){ alert("Select at least one case first."); return; }
+  readBriefIntoState();
+  const data = {
+    cases: state.cases.filter(c=>selectedIds.has(c.id)),
+    activeId: null, view: state.view, font: state.font
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "cases-selected-" + new Date().toISOString().slice(0,10) + ".json";
+  a.click(); URL.revokeObjectURL(a.href);
+});
+$("bulkPdf").addEventListener("click", ()=>{
+  if(!selectedIds.size){ alert("Select at least one case first."); return; }
+  readBriefIntoState();
+  const holder = $("printMulti");
+  holder.innerHTML = "";
+  const chosen = state.cases.filter(c=>selectedIds.has(c.id))
+    .sort((a,b)=>{
+      const ka = (a.course.trim()||"~") + "|" + stripHtml(a.name);
+      const kb = (b.course.trim()||"~") + "|" + stripHtml(b.name);
+      return ka.localeCompare(kb);
+    });
+  chosen.forEach(c=>holder.appendChild(buildPrintBrief(c)));
+  document.body.classList.add("multi-print");
+  window.print();
+});
+window.addEventListener("afterprint", ()=>{
+  document.body.classList.remove("multi-print");
+  $("printMulti").innerHTML = "";
+});
+
+function buildPrintBrief(c){
+  const wrap = document.createElement("article");
+  wrap.className = "brief pbreak" + (state.view==="irac" ? " irac-only" : "");
+  const head = document.createElement("div");
+  head.className = "brief-head";
+  const h1 = document.createElement("h1");
+  h1.className = "case-title";
+  h1.innerHTML = c.name || "Untitled case";
+  head.appendChild(h1);
+  const meta = document.createElement("div");
+  meta.className = "meta-row";
+  [["Citation",c.cite],["Court",c.court],["Course",c.course],["Reading / Page",c.page]].forEach(pair=>{
+    const mi = document.createElement("div"); mi.className = "meta-item";
+    const l = document.createElement("label"); l.textContent = pair[0];
+    const v = document.createElement("div"); v.className = "meta-input"; v.textContent = pair[1] || "—";
+    mi.appendChild(l); mi.appendChild(v); meta.appendChild(mi);
+  });
+  head.appendChild(meta);
+  wrap.appendChild(head);
+  const secs = [
+    ["facts","Facts", c.facts], ["proc","Procedural History", c.proc],
+    ["issue","Issue", c.issue], ["rule","Rule", c.rule],
+    ["application","Application", c.app], ["conclusion","Conclusion / Holding", c.conc],
+    ["notes","Class Notes", c.notes]
+  ];
+  secs.forEach(t=>{
+    const s = document.createElement("section");
+    s.className = "section"; s.dataset.sec = t[0];
+    const rail = document.createElement("div"); rail.className = "sec-rail";
+    const en = document.createElement("div"); en.className = "sec-en"; en.textContent = t[1];
+    rail.appendChild(en);
+    const body = document.createElement("div"); body.className = "sec-body";
+    const f = document.createElement("div"); f.className = "field"; f.innerHTML = t[2] || "";
+    body.appendChild(f);
+    s.appendChild(rail); s.appendChild(body);
+    wrap.appendChild(s);
+  });
+  if(c.stickies && c.stickies.length){
+    const ps = document.createElement("div"); ps.className = "print-stickies";
+    ps.innerHTML = "<h3>Post-it notes</h3>";
+    c.stickies.forEach(st=>{
+      const d = document.createElement("div");
+      d.className = "pnote"; d.dataset.clr = st.color;
+      d.innerHTML = st.text || "";
+      ps.appendChild(d);
+    });
+    wrap.appendChild(ps);
+  }
+  return wrap;
+}
+
+/* ------------------------------------------------------------- font picker */
+const DEFAULT_FONT = 'Arial,"Apple SD Gothic Neo","Malgun Gothic",sans-serif';
+$("fontSel").addEventListener("change", ()=>{
+  setFont($("fontSel").value); scheduleSave();
+});
+function setFont(stack){
+  state.font = stack || DEFAULT_FONT;
+  document.documentElement.style.setProperty("--brief-font", state.font);
+  const sel = $("fontSel");
+  let matched = false;
+  for(const o of sel.options){ if(o.value === state.font){ sel.value = state.font; matched = true; break; } }
+  if(!matched) sel.value = DEFAULT_FONT;
+}
+
+/* ------------------------------------------------------------- view toggle */
+$("viewFull").addEventListener("click", ()=>setView("full"));
+$("viewIrac").addEventListener("click", ()=>setView("irac"));
+function setView(v){
+  state.view = v;
+  $("brief").classList.toggle("irac-only", v==="irac");
+  $("viewFull").classList.toggle("on", v==="full");
+  $("viewIrac").classList.toggle("on", v==="irac");
+  scheduleSave();
+}
+
+/* ---------------------------------------------------------- backup/restore */
+$("exportJson").addEventListener("click", ()=>{
+  readBriefIntoState();
+  const blob = new Blob([JSON.stringify(state, null, 2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  const d = new Date().toISOString().slice(0,10);
+  a.download = "case-briefs-backup-" + d + ".json";
+  a.click(); URL.revokeObjectURL(a.href);
+});
+$("importJson").addEventListener("click", ()=>$("importFile").click());
+$("importFile").addEventListener("change", (e)=>{
+  const f = e.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = ()=>{
+    try{
+      const data = JSON.parse(r.result);
+      if(!data || !Array.isArray(data.cases)) throw new Error("bad file");
+      if(!confirm("Restore " + data.cases.length + " case(s)? Cases with new IDs are added; nothing is deleted.")) return;
+      const have = new Set(state.cases.map(c=>c.id));
+      data.cases.forEach(c=>{ if(!have.has(c.id)) state.cases.push(c); });
+      if(!state.activeId && state.cases.length) state.activeId = state.cases[0].id;
+      renderSidebar(); renderBrief(); persist();
+    }catch(err){ alert("That file doesn't look like a Case Brief Studio backup."); }
+  };
+  r.readAsText(f); e.target.value = "";
+});
+
+/* ------------------------------------------------------------------ misc */
+$("newCaseBtn").addEventListener("click", addCase);
+$("dupBtn").addEventListener("click", duplicateCase);
+$("delBtn").addEventListener("click", deleteCase);
+$("printBtn").addEventListener("click", ()=>{ readBriefIntoState(); renderPrintStickies(activeCase()); window.print(); });
+$("searchBox").addEventListener("input", renderSidebar);
+$("menuBtn").addEventListener("click", ()=>$("sidebar").classList.toggle("open"));
+function closeSidebarMobile(){ $("sidebar").classList.remove("open"); }
+
+window.addEventListener("beforeunload", ()=>{ readBriefIntoState(); });
+
+/* ------------------------------------------------------------------ init */
+(async function init(){
+  await loadState();
+  if(!state.cases || !state.cases.length){
+    state = { cases:[blankCase()], activeId:null, view:"full" };
+    state.activeId = state.cases[0].id;
+  }
+  if(!state.activeId || !activeCase()) state.activeId = state.cases[0].id;
+  wireFields();
+  setFont(state.font || DEFAULT_FONT);
+  setView(state.view === "irac" ? "irac" : "full");
+  renderSidebar();
+  renderBrief();
+  setStatus("Ready");
+})();
+
+})();
+</script>
+</body>
+</html>
