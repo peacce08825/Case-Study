@@ -107,6 +107,25 @@ body.selectmode .side-bottom{display:none}
 .bulkbar .row{display:flex;gap:6px}
 .bulkbar .row .btn{flex:1;font-size:12px;padding:6px 4px;text-align:center}
 
+/* ---------- sidebar drag-and-drop ---------- */
+.case-item.dragging{opacity:.45}
+.case-item.drag-over{box-shadow:inset 0 3px 0 -1px var(--slate);border-radius:8px}
+.course-label.drop-hint{color:var(--slate);background:#33517A14;border-radius:6px}
+
+/* ---------- quick memos ---------- */
+.memos{margin-top:20px;display:flex;flex-direction:column;gap:10px}
+.memo{
+  position:relative;border:1px solid var(--rule);border-left:4px solid var(--c-app);
+  background:#B5811F0C;border-radius:6px;padding:10px 34px 10px 12px;
+}
+.memo-ts{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);display:block;margin-bottom:4px}
+.memo-body{font-family:var(--brief-font);font-size:14px;line-height:1.6;outline:none;min-height:20px}
+.memo-body:empty:before{content:attr(data-ph);color:#B9BCC5;font-style:italic;font-size:13px}
+.memo .kill{position:absolute;top:8px;right:8px;border:none;background:none;font-size:13px;color:#00000055;padding:2px 4px;cursor:pointer}
+.memo .kill:hover{color:var(--c-conc)}
+.add-memo{width:100%;margin-top:12px;border-style:dashed;color:var(--ink-soft);font-size:13px;padding:9px}
+.add-memo:hover{color:var(--slate)}
+
 /* ---------- multi-case print container ---------- */
 #printMulti{display:none}
 
@@ -237,7 +256,7 @@ body.selectmode .side-bottom{display:none}
 /* ---------- print: only the active brief, colors preserved ---------- */
 @media print{
   body{background:#fff}
-  .topbar,.sidebar,.toolbar,.brief-actions,.sticky,.menu-btn{display:none !important}
+  .topbar,.sidebar,.toolbar,.brief-actions,.sticky,.menu-btn,.add-memo,.memo .kill{display:none !important}
   .layout{padding-top:0}
   .main{overflow:visible}
   .canvas-wrap{padding:0}
@@ -413,6 +432,9 @@ body.selectmode .side-bottom{display:none}
           <div class="sec-body"><div class="field" id="f_notes" contenteditable="true" data-ph="Professor's hypos, likely cold-call questions, and your prepared answers (your script)."></div></div>
         </section>
 
+        <div class="memos" id="memoList"></div>
+        <button class="btn add-memo" id="addMemoBtn">＋ Add memo · class notes, thoughts, questions</button>
+
         <div class="brief-actions">
           <button class="btn" id="dupBtn">Duplicate</button>
           <button class="btn danger" id="delBtn">Delete case</button>
@@ -441,7 +463,7 @@ const uid = ()=>"c" + Date.now().toString(36) + Math.random().toString(36).slice
 function blankCase(){
   return { id: uid(), name:"", cite:"", court:"", course:"", page:"",
            facts:"", proc:"", issue:"", rule:"", app:"", conc:"", notes:"",
-           stickies:[], updated: Date.now() };
+           stickies:[], memos:[], updated: Date.now() };
 }
 function activeCase(){ return state.cases.find(c=>c.id===state.activeId) || null; }
 
@@ -498,28 +520,32 @@ function renderSidebar(){
   const list = $("caseList");
   const q = $("searchBox").value.trim().toLowerCase();
   list.innerHTML = "";
-  const groups = {};
+  const groups = [];
+  const gmap = {};
   state.cases.forEach(c=>{
     const hay = (stripHtml(c.name)+" "+c.cite+" "+c.course).toLowerCase();
     if(q && !hay.includes(q)) return;
     const key = c.course.trim() || "Uncategorized";
-    (groups[key] = groups[key] || []).push(c);
+    if(!gmap[key]){ gmap[key] = { key: key, cases: [] }; groups.push(gmap[key]); }
+    gmap[key].cases.push(c);
   });
-  const keys = Object.keys(groups).sort((a,b)=>a.localeCompare(b));
-  if(keys.length===0){
+  if(groups.length===0){
     list.innerHTML = '<div class="empty-list">'+(q ? "No cases match your search." :
       "No cases yet.<br>Press <b>＋ New case</b> to start your first brief.")+'</div>';
     return;
   }
-  keys.forEach(k=>{
+  groups.forEach(gr=>{
     const g = document.createElement("div");
     g.className = "course-group";
     const lab = document.createElement("div");
     lab.className = "course-label";
-    lab.textContent = k;
+    lab.textContent = gr.key;
+    /* drop a dragged case onto a group heading -> move it into that group */
+    lab.addEventListener("dragover", e=>{ if(dragId){ e.preventDefault(); lab.classList.add("drop-hint"); } });
+    lab.addEventListener("dragleave", ()=>lab.classList.remove("drop-hint"));
+    lab.addEventListener("drop", e=>{ e.preventDefault(); lab.classList.remove("drop-hint"); dropOnGroup(gr.key); });
     g.appendChild(lab);
-    groups[k].sort((a,b)=>stripHtml(a.name).localeCompare(stripHtml(b.name)));
-    groups[k].forEach(c=>{
+    gr.cases.forEach(c=>{
       const b = document.createElement("button");
       b.className = "case-item"
         + (c.id===state.activeId ? " active" : "")
@@ -534,6 +560,24 @@ function renderSidebar(){
         if(selectMode){ toggleSelected(c.id, b); return; }
         selectCase(c.id); closeSidebarMobile();
       });
+      if(!selectMode){
+        b.draggable = true;
+        b.addEventListener("dragstart", e=>{
+          readBriefIntoState();          /* capture edits before any move */
+          dragId = c.id;
+          b.classList.add("dragging");
+          e.dataTransfer.effectAllowed = "move";
+          try{ e.dataTransfer.setData("text/plain", c.id); }catch(err){}
+        });
+        b.addEventListener("dragend", ()=>{ dragId = null; b.classList.remove("dragging"); });
+        b.addEventListener("dragover", e=>{ if(dragId && dragId!==c.id){ e.preventDefault(); b.classList.add("drag-over"); } });
+        b.addEventListener("dragleave", ()=>b.classList.remove("drag-over"));
+        b.addEventListener("drop", e=>{
+          e.preventDefault(); e.stopPropagation();
+          b.classList.remove("drag-over");
+          dropOnCase(c);
+        });
+      }
       g.appendChild(b);
     });
     list.appendChild(g);
@@ -546,6 +590,32 @@ function toggleSelected(id, node){
 }
 function updateBulkCount(){
   $("bulkCount").textContent = selectedIds.size + " selected";
+}
+
+/* ------------------------------------------------------- sidebar drag-drop */
+let dragId = null;
+function dropOnCase(target){
+  if(!dragId || dragId===target.id) return;
+  const d = state.cases.find(x=>x.id===dragId);
+  if(!d) return;
+  state.cases = state.cases.filter(x=>x.id!==dragId);
+  const idx = state.cases.findIndex(x=>x.id===target.id);
+  state.cases.splice(idx, 0, d);          /* insert just above the case it was dropped on */
+  d.course = target.course;               /* joins that case's group */
+  dragId = null;
+  renderSidebar(); renderBrief(); scheduleSave();
+}
+function dropOnGroup(key){
+  if(!dragId) return;
+  const d = state.cases.find(x=>x.id===dragId);
+  if(!d) return;
+  state.cases = state.cases.filter(x=>x.id!==dragId);
+  d.course = (key==="Uncategorized") ? "" : key;
+  let last = -1;                          /* append at the end of that group */
+  state.cases.forEach((c,i)=>{ if((c.course.trim()||"Uncategorized")===key) last = i; });
+  state.cases.splice(last+1, 0, d);
+  dragId = null;
+  renderSidebar(); renderBrief(); scheduleSave();
 }
 function stripHtml(html){
   const d = document.createElement("div");
@@ -569,6 +639,7 @@ function renderBrief(){
   FIELD_MAP.forEach(([el,key])=>{ $(el).innerHTML = c[key]; });
   cleanEmptyFields();
   renderStickies(c);
+  renderMemos(c);
   renderPrintStickies(c);
 }
 function cleanEmptyFields(){
@@ -603,6 +674,7 @@ function duplicateCase(){
   copy.id = uid(); copy.updated = Date.now();
   copy.name = (c.name || "Untitled") + " (copy)";
   copy.stickies.forEach(s=>{ s.id = uid(); });
+  (copy.memos || []).forEach(m=>{ m.id = uid(); });
   state.cases.push(copy);
   selectCase(copy.id);
 }
@@ -644,15 +716,16 @@ document.querySelectorAll(".toolbar [data-fore]").forEach(b=>{
 /* keyboard shortcuts: Ctrl/Cmd+B/I/U already native in contenteditable */
 
 /* ------------------------------------------------------------ field wiring */
+function plainPaste(e){                       /* paste as plain text to keep briefs clean */
+  e.preventDefault();
+  const t = (e.clipboardData || window.clipboardData).getData("text/plain");
+  document.execCommand("insertText", false, t);
+}
 function wireFields(){
   document.querySelectorAll(".field, .case-title").forEach(f=>{
     f.addEventListener("input", ()=>{ readBriefIntoState(); renderSidebarSoft(); scheduleSave(); });
     f.addEventListener("blur", cleanEmptyFields);
-    f.addEventListener("paste", e=>{           /* paste as plain text to keep briefs clean */
-      e.preventDefault();
-      const t = (e.clipboardData || window.clipboardData).getData("text/plain");
-      document.execCommand("insertText", false, t);
-    });
+    f.addEventListener("paste", plainPaste);
   });
   ["f_cite","f_court","f_course","f_page"].forEach(id=>{
     $(id).addEventListener("input", ()=>{ readBriefIntoState(); renderSidebarSoft(); scheduleSave(); });
@@ -753,8 +826,9 @@ $("bulkCourse").addEventListener("click", ()=>{
   if(!selectedIds.size){ alert("Select at least one case first."); return; }
   const name = prompt("Course name for the " + selectedIds.size + " selected case(s):");
   if(name===null) return;
+  readBriefIntoState();   /* capture current edits FIRST so they aren't lost */
   state.cases.forEach(c=>{ if(selectedIds.has(c.id)) c.course = name.trim(); });
-  readBriefIntoState(); renderSidebar(); renderBrief(); scheduleSave();
+  renderSidebar(); renderBrief(); scheduleSave();
 });
 $("bulkDelete").addEventListener("click", ()=>{
   if(!selectedIds.size){ alert("Select at least one case first."); return; }
@@ -783,12 +857,7 @@ $("bulkPdf").addEventListener("click", ()=>{
   readBriefIntoState();
   const holder = $("printMulti");
   holder.innerHTML = "";
-  const chosen = state.cases.filter(c=>selectedIds.has(c.id))
-    .sort((a,b)=>{
-      const ka = (a.course.trim()||"~") + "|" + stripHtml(a.name);
-      const kb = (b.course.trim()||"~") + "|" + stripHtml(b.name);
-      return ka.localeCompare(kb);
-    });
+  const chosen = state.cases.filter(c=>selectedIds.has(c.id));   /* keeps your sidebar order */
   chosen.forEach(c=>holder.appendChild(buildPrintBrief(c)));
   document.body.classList.add("multi-print");
   window.print();
@@ -835,6 +904,17 @@ function buildPrintBrief(c){
     s.appendChild(rail); s.appendChild(body);
     wrap.appendChild(s);
   });
+  if(c.memos && c.memos.length){
+    const mbox = document.createElement("div"); mbox.className = "memos";
+    c.memos.forEach(m=>{
+      const d = document.createElement("div"); d.className = "memo";
+      d.innerHTML = '<span class="memo-ts"></span><div class="memo-body"></div>';
+      d.querySelector(".memo-ts").textContent = m.label || "Memo";
+      d.querySelector(".memo-body").innerHTML = m.text || "";
+      mbox.appendChild(d);
+    });
+    wrap.appendChild(mbox);
+  }
   if(c.stickies && c.stickies.length){
     const ps = document.createElement("div"); ps.className = "print-stickies";
     ps.innerHTML = "<h3>Post-it notes</h3>";
@@ -848,6 +928,41 @@ function buildPrintBrief(c){
   }
   return wrap;
 }
+
+/* ---------------------------------------------------------------- memos */
+function renderMemos(c){
+  const box = $("memoList");
+  box.innerHTML = "";
+  (c.memos || []).forEach(m=>{
+    const d = document.createElement("div");
+    d.className = "memo";
+    d.innerHTML = '<span class="memo-ts"></span>'+
+                  '<button class="kill" title="Delete memo">✕</button>'+
+                  '<div class="memo-body" contenteditable="true" data-ph="Professor said… / my thought… / question…"></div>';
+    d.querySelector(".memo-ts").textContent = m.label || "Memo";
+    const body = d.querySelector(".memo-body");
+    body.innerHTML = m.text || "";
+    body.addEventListener("input", ()=>{ m.text = body.innerHTML; scheduleSave(); });
+    body.addEventListener("paste", plainPaste);
+    d.querySelector(".kill").addEventListener("click", ()=>{
+      c.memos = c.memos.filter(x=>x.id!==m.id);
+      renderMemos(c); scheduleSave();
+    });
+    box.appendChild(d);
+  });
+}
+$("addMemoBtn").addEventListener("click", ()=>{
+  const c = activeCase(); if(!c) return;
+  c.memos = c.memos || [];
+  const now = new Date();
+  const label = "Memo — " +
+    now.toLocaleDateString(undefined, {month:"short", day:"numeric"}) + ", " +
+    now.toLocaleTimeString(undefined, {hour:"numeric", minute:"2-digit"});
+  c.memos.push({ id: uid(), label: label, text: "" });
+  renderMemos(c); scheduleSave();
+  const last = $("memoList").lastElementChild;
+  if(last){ last.querySelector(".memo-body").focus(); last.scrollIntoView({behavior:"smooth", block:"center"}); }
+});
 
 /* ------------------------------------------------------------- font picker */
 const DEFAULT_FONT = 'Arial,"Apple SD Gothic Neo","Malgun Gothic",sans-serif';
@@ -921,6 +1036,7 @@ window.addEventListener("beforeunload", ()=>{ readBriefIntoState(); });
     state.activeId = state.cases[0].id;
   }
   if(!state.activeId || !activeCase()) state.activeId = state.cases[0].id;
+  state.cases.forEach(c=>{ c.stickies = c.stickies || []; c.memos = c.memos || []; });
   wireFields();
   setFont(state.font || DEFAULT_FONT);
   setView(state.view === "irac" ? "irac" : "full");
